@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: flora-focus-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    region: ohio
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: FLORA_ENV
+        value: production
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false

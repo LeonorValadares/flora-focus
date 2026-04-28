@@ -1,0 +1,11 @@
+venv/
+dist/
+wheelhouse/
+.kivy/
+backend/*.db
+backend/__pycache__/
+kivy_app/__pycache__/
+kivy_app/context/__pycache__/
+kivy_app/screens/__pycache__/
+*.pyc
+*.log
