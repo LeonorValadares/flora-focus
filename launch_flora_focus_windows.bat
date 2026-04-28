@@ -5,6 +5,7 @@ cd /d "%~dp0"
 
 set "PYTHONW=%~dp0venv\Scripts\pythonw.exe"
 set "PYTHON=%~dp0venv\Scripts\python.exe"
+set "BACKEND_URL=http://127.0.0.1:8000"
 
 if exist "%PYTHONW%" (
     start "" "%PYTHONW%" "%~dp0kivy_app\main.py"

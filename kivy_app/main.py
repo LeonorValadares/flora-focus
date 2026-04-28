@@ -17,6 +17,7 @@ import ctypes
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
+from urllib.parse import urlparse
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 APP_ICON = PROJECT_ROOT / "FloraFocus.png"
@@ -47,7 +48,7 @@ from kivy.uix.screenmanager import ScreenManager, SlideTransition, NoTransition
 from kivy.core.window import Window
 from kivy.clock import Clock
 
-from context.auth_context import AuthContext
+from context.auth_context import AuthContext, BACKEND_URL, using_local_backend
 from context.language_context import LanguageContext
 from screens.login_screen import LoginScreen
 from screens.signup_screen import SignupScreen
@@ -65,7 +66,7 @@ if APP_ICON.exists():
 
 BACKEND_DIR = PROJECT_ROOT / "backend"
 BACKEND_SERVER = BACKEND_DIR / "server.py"
-BACKEND_HEALTH_URL = "http://127.0.0.1:8000/api/health"
+BACKEND_HEALTH_URL = f"{BACKEND_URL}/api/health"
 BACKEND_IMPORT_CHECK = (
     "import fastapi, uvicorn, passlib, jose, pydantic; print('ok')"
 )
@@ -114,8 +115,11 @@ def _backend_python():
 class BackendManager:
     def __init__(self):
         self.process = None
+        self.enabled = using_local_backend()
 
     def ensure_running(self, timeout=12):
+        if not self.enabled:
+            return
         if self._is_ready():
             return
 
@@ -138,6 +142,8 @@ class BackendManager:
         raise RuntimeError("Backend did not become ready in time")
 
     def stop(self):
+        if not self.enabled:
+            return
         if not self.process or self.process.poll() is not None:
             return
         self.process.terminate()
