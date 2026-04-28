@@ -24,11 +24,19 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, ConfigDict, EmailStr
 from starlette.middleware.cors import CORSMiddleware
 
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    psycopg = None
+    dict_row = None
+
 # ── Config ────────────────────────────────────────────────────────────────────
 
 ROOT_DIR = Path(__file__).parent
 FLORA_ENV = os.environ.get("FLORA_ENV", "development").lower()
 DEFAULT_SECRET_KEY = "flora-focus-dev-secret-change-me"
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 DB_ENV_PATH = os.environ.get("FLORA_DB_PATH")
 if DB_ENV_PATH:
     DB_PATH = Path(DB_ENV_PATH)
@@ -36,6 +44,7 @@ if DB_ENV_PATH:
         DB_PATH = ROOT_DIR / DB_PATH
 else:
     DB_PATH = ROOT_DIR / "flora_focus.db"
+DB_KIND = "postgres" if DATABASE_URL else "sqlite"
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", DEFAULT_SECRET_KEY)
 ALGORITHM = "HS256"
 TOKEN_DAYS = 30
@@ -55,6 +64,10 @@ log = logging.getLogger(__name__)
 
 if FLORA_ENV == "production" and SECRET_KEY == DEFAULT_SECRET_KEY:
     raise RuntimeError("JWT_SECRET_KEY must be set in production.")
+if DATABASE_URL and psycopg is None:
+    raise RuntimeError("DATABASE_URL is set but psycopg is not installed.")
+if FLORA_ENV == "production" and DB_KIND == "sqlite":
+    log.warning("Running production without DATABASE_URL. SQLite is not suitable for real users.")
 
 
 def allowed_origins():
@@ -67,18 +80,46 @@ def allowed_origins():
 
 @contextmanager
 def db_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    if DB_KIND == "postgres":
+        conn = psycopg.connect(DATABASE_URL, autocommit=False, row_factory=dict_row)
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
     try:
-        yield conn
+        yield DBConn(conn, DB_KIND)
         conn.commit()
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
+
+
+class DBConn:
+    def __init__(self, conn, kind):
+        self._conn = conn
+        self.kind = kind
+
+    def execute(self, query, params=None):
+        return self._conn.execute(_sql(query, self.kind), params or ())
+
+    def executescript(self, script):
+        if self.kind == "sqlite":
+            return self._conn.executescript(script)
+        for statement in _split_sql(script):
+            self._conn.execute(statement)
+
+
+def _sql(query: str, kind: str) -> str:
+    if kind == "postgres":
+        return query.replace("?", "%s")
+    return query
+
+
+def _split_sql(script: str) -> List[str]:
+    return [stmt.strip() for stmt in script.split(";") if stmt.strip()]
 
 def init_db():
     with db_conn() as conn:
@@ -130,7 +171,8 @@ def init_db():
             PRIMARY KEY (group_id, user_id)
         );
         """)
-    log.info("Database ready: %s", DB_PATH)
+    target = DATABASE_URL if DB_KIND == "postgres" else DB_PATH
+    log.info("Database ready (%s): %s", DB_KIND, target)
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
