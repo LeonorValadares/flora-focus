@@ -6,11 +6,12 @@ Mirrors the React AuthContext + api.js login/signup/token logic.
 import os
 import requests
 from urllib.parse import urlparse
+from app_paths import user_data_dir
 
 DEFAULT_BACKEND_URL = "https://flora-focus-api.onrender.com"
 BACKEND_URL = os.environ.get("BACKEND_URL", DEFAULT_BACKEND_URL).rstrip("/")
 API = f"{BACKEND_URL}/api"
-TOKEN_FILE = os.path.join(os.path.dirname(__file__), "..", ".session_token")
+TOKEN_FILE = str(user_data_dir() / ".session_token")
 
 
 def using_local_backend():

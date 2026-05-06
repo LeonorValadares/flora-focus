@@ -2,10 +2,13 @@ venv/
 dist/
 wheelhouse/
 .kivy/
+.florafocus/
 backend/*.db
 backend/__pycache__/
 kivy_app/__pycache__/
 kivy_app/context/__pycache__/
 kivy_app/screens/__pycache__/
+windows_store/build/
+windows_store/dist/
 *.pyc
 *.log

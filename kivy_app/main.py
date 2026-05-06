@@ -17,11 +17,12 @@ import ctypes
 from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
-from urllib.parse import urlparse
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+from app_paths import app_root, user_data_dir
+
+PROJECT_ROOT = app_root()
 APP_ICON = PROJECT_ROOT / "FloraFocus.png"
-KIVY_HOME = PROJECT_ROOT / ".kivy"
+KIVY_HOME = user_data_dir() / ".kivy"
 KIVY_HOME.mkdir(parents=True, exist_ok=True)
 (KIVY_HOME / "logs").mkdir(parents=True, exist_ok=True)
 
