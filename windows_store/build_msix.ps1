@@ -6,11 +6,12 @@ $exeRoot = Join-Path $root "windows_store\dist\FloraFocus"
 $msixRoot = Join-Path $root "windows_store\msix"
 $packageRoot = Join-Path $msixRoot "package"
 $assetsRoot = Join-Path $msixRoot "Assets"
-$outputMsix = Join-Path $msixRoot "FloraFocus_1.0.0.0_x64.msix"
-$publisher = "CN=FloraFocusTest"
-$packageName = "LeonorValadares.FloraFocus"
+$outputMsix = Join-Path $msixRoot "FloraFocus_1.0.0.0_x64_store.msix"
+$publisher = "CN=26431DD1-7B8A-4A13-8414-F23C38983B0B"
+$packageName = "MariaLeonorValadares.FloraFocus"
 $displayName = "Flora Focus"
-$description = "Flora Focus packaged as a local MSIX test build."
+$publisherDisplayName = "Maria Leonor Valadares"
+$description = "Flora Focus packaged for Microsoft Store submission."
 
 $sdkBin = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.18362.0\x64"
 $makeAppx = Join-Path $sdkBin "makeappx.exe"
@@ -48,7 +49,7 @@ $manifest = @"
   <Identity Name="$packageName" Version="1.0.0.0" Publisher="$publisher" ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>$displayName</DisplayName>
-    <PublisherDisplayName>Flora Focus</PublisherDisplayName>
+    <PublisherDisplayName>$publisherDisplayName</PublisherDisplayName>
     <Description>$description</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -100,11 +101,11 @@ if (-not $cert) {
         -Type Custom `
         -Subject $publisher `
         -KeyUsage DigitalSignature `
-        -FriendlyName "Flora Focus Local MSIX" `
+        -FriendlyName "Flora Focus Store MSIX Test" `
         -CertStoreLocation "Cert:\CurrentUser\My"
 }
 
-$cerPath = Join-Path $msixRoot "FloraFocusTest.cer"
+$cerPath = Join-Path $msixRoot "FloraFocusStoreTest.cer"
 Export-Certificate -Cert ("Cert:\CurrentUser\My\" + $cert.Thumbprint) -FilePath $cerPath -Force | Out-Null
 
 foreach ($storePath in @("Cert:\CurrentUser\TrustedPeople", "Cert:\CurrentUser\Root")) {
