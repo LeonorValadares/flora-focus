@@ -121,6 +121,18 @@ def _sql(query: str, kind: str) -> str:
 def _split_sql(script: str) -> List[str]:
     return [stmt.strip() for stmt in script.split(";") if stmt.strip()]
 
+
+def _enable_postgres_rls(conn):
+    for table_name in (
+        "users",
+        "tasks",
+        "friendships",
+        "family_groups",
+        "family_members",
+    ):
+        conn.execute(f'ALTER TABLE "{table_name}" ENABLE ROW LEVEL SECURITY')
+
+
 def init_db():
     with db_conn() as conn:
         conn.executescript("""
@@ -171,6 +183,8 @@ def init_db():
             PRIMARY KEY (group_id, user_id)
         );
         """)
+        if DB_KIND == "postgres":
+            _enable_postgres_rls(conn)
     target = DATABASE_URL if DB_KIND == "postgres" else DB_PATH
     log.info("Database ready (%s): %s", DB_KIND, target)
 

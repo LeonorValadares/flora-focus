@@ -10,5 +10,6 @@ kivy_app/context/__pycache__/
 kivy_app/screens/__pycache__/
 windows_store/build/
 windows_store/dist/
+windows_store/msix/
 *.pyc
 *.log
