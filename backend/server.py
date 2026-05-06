@@ -254,6 +254,7 @@ class FriendRequest(BaseModel):
 class FamilyGroupCreate(BaseModel):
     name:          str
     member_emails: List[str]
+    leader_emails: List[str] = []
 
 class FamilyMember(BaseModel):
     user_id:  str
@@ -589,11 +590,26 @@ def create_family_group(data: FamilyGroupCreate, cu: dict = Depends(get_current_
                 raise HTTPException(404, f"User {email} not found")
             new_members.append(dict(u))
 
+        leader_emails = []
+        seen_leaders = set()
+        for email in data.leader_emails:
+            cleaned = email.strip().lower()
+            if cleaned and cleaned not in seen_leaders:
+                seen_leaders.add(cleaned)
+                leader_emails.append(cleaned)
+        if len(leader_emails) > 1:
+            raise HTTPException(400, "You can choose only one extra leader")
+        member_email_set = {member["email"].lower() for member in new_members}
+        for email in leader_emails:
+            if email not in member_email_set:
+                raise HTTPException(400, "Extra leader must be one of the invited members")
+
         all_members = [{"user_id": cu["email"], "username": cu["username"],
-                        "email": cu["email"], "role": "admin"}]
+                        "email": cu["email"], "role": "leader"}]
         for u in new_members:
+            role = "leader" if u["email"].lower() in leader_emails else "member"
             all_members.append({"user_id": u["email"], "username": u["username"],
-                                 "email": u["email"], "role": "member"})
+                                 "email": u["email"], "role": role})
         if len(all_members) > 8:
             raise HTTPException(400, "Maximum 8 members allowed")
 
@@ -627,8 +643,8 @@ def assign_group_task(group_id: str, data: GroupTaskCreate,
         if not group:
             raise HTTPException(404, "Group not found")
         me = next((m for m in group["members"] if m["user_id"] == cu["email"]), None)
-        if not me or me["role"] != "admin":
-            raise HTTPException(403, "Only admins can assign tasks")
+        if not me or me["role"] not in {"leader", "admin"}:
+            raise HTTPException(403, "Only leaders can assign tasks")
         if not next((m for m in group["members"] if m["email"] == data.assigned_to_email), None):
             raise HTTPException(404, "Assigned user not in group")
         tid = str(uuid.uuid4())

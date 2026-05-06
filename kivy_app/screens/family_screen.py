@@ -11,7 +11,6 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import Screen
 from kivy.uix.scrollview import ScrollView
-from kivy.uix.textinput import TextInput
 
 from screens.widgets import (
     BottomNav,
@@ -20,8 +19,6 @@ from screens.widgets import (
     C_CREAM,
     C_INK,
     C_INK_SOFT,
-    C_LEAF,
-    C_WHITE,
     DropdownSpinner,
     HeaderBar,
     LoadingSpinner,
@@ -48,6 +45,7 @@ class FamilyScreen(Screen):
         self.lang = lang
         self.sm = sm
         self.groups = []
+        self._premium_acknowledged = False
         self._build()
 
     def _build(self):
@@ -85,6 +83,9 @@ class FamilyScreen(Screen):
         self.add_widget(root)
 
     def on_enter(self, *_):
+        if not self._premium_acknowledged:
+            Clock.schedule_once(lambda _dt: self._show_premium_notice(), 0)
+            return
         if self.groups:
             self._render(self.groups)
         self._spinner.start()
@@ -120,7 +121,7 @@ class FamilyScreen(Screen):
         t = self.lang.t
         user_email = (self.auth.user or {}).get("email", "")
         user_member = next((m for m in group["members"] if m["email"] == user_email), None)
-        is_admin = bool(user_member and user_member["role"] == "admin")
+        is_leader = bool(user_member and user_member["role"] in {"leader", "admin"})
         count = len(group["members"])
         card_h = dp(52) + dp(28) + count * dp(54) + dp(20)
 
@@ -129,7 +130,7 @@ class FamilyScreen(Screen):
         name_lbl = Label(text="Group  " + group["name"], font_size=sp(17), bold=True, color=C_INK, halign="left")
         name_lbl.bind(size=lambda i, v: setattr(i, "text_size", (v[0], None)))
         top.add_widget(name_lbl)
-        if is_admin:
+        if is_leader:
             btn = StyledButton(text=t("assignTask"), size_hint=(None, 1), width=dp(120))
             btn.bind(on_release=lambda *_args, g=group: self._show_assign(g))
             top.add_widget(btn)
@@ -137,25 +138,58 @@ class FamilyScreen(Screen):
         card.add_widget(label(f"{t('members')} ({count}/8)", bold=True, font_size=sp(12), color=C_INK_SOFT, height=dp(22)))
 
         for member in group["members"]:
+            member_is_leader = member["role"] in {"leader", "admin"}
+            role_text = t("leader") if member_is_leader else t("member")
             row = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
-            row.add_widget(Label(text="Admin" if member["role"] == "admin" else "User", font_size=sp(10), size_hint=(None, 1), width=dp(40), color=C_INK))
+            row.add_widget(Label(text=role_text.title(), font_size=sp(10), size_hint=(None, 1), width=dp(52), color=C_INK))
             info = BoxLayout(orientation="vertical")
             info.add_widget(label(member["username"], bold=True, font_size=sp(12), height=dp(20)))
             info.add_widget(label(member["email"], color=C_INK_SOFT, font_size=sp(10), height=dp(16)))
             row.add_widget(info)
 
-            badge_bg = C_AMBER100 if member["role"] == "admin" else (0.91, 0.90, 0.87, 1)
-            badge_clr = C_AMBER800 if member["role"] == "admin" else C_INK_SOFT
+            badge_bg = C_AMBER100 if member_is_leader else (0.91, 0.90, 0.87, 1)
+            badge_clr = C_AMBER800 if member_is_leader else C_INK_SOFT
             badge = BoxLayout(size_hint=(None, 1), width=dp(54))
             with badge.canvas.before:
                 Color(*badge_bg)
                 brr = RoundedRectangle(pos=badge.pos, size=badge.size, radius=[dp(10)])
             badge.bind(pos=lambda _i, v: setattr(brr, "pos", v), size=lambda _i, v: setattr(brr, "size", v))
-            badge.add_widget(Label(text=t(member["role"]), font_size=sp(10), color=badge_clr))
+            badge.add_widget(Label(text=role_text, font_size=sp(10), color=badge_clr))
             row.add_widget(badge)
             card.add_widget(row)
 
         return card
+
+    def _show_premium_notice(self):
+        t = self.lang.t
+        box = BoxLayout(orientation="vertical", spacing=dp(14), padding=dp(16))
+        box.add_widget(label(t("futurePremiumTitle"), bold=True, font_size=sp(16), halign="center", height=dp(26)))
+        box.add_widget(label(t("futurePremiumFamilyMessage"), color=C_INK_SOFT, halign="center", height=dp(72), font_size=sp(12)))
+        btns = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(10))
+        back_btn = OutlineButton(text=t("cancel"))
+        continue_btn = StyledButton(text=t("continueDemo"))
+        btns.add_widget(back_btn)
+        btns.add_widget(continue_btn)
+        box.add_widget(btns)
+
+        pop = Popup(title="", content=box, size_hint=(0.9, None), height=dp(240), background="", background_color=(0, 0, 0, 0), overlay_color=(0, 0, 0, 0.50), separator_height=0)
+        with pop.canvas.before:
+            Color(*C_CREAM)
+            rr = RoundedRectangle(pos=pop.pos, size=pop.size, radius=[dp(20)])
+        pop.bind(pos=lambda _i, v: setattr(rr, "pos", v), size=lambda _i, v: setattr(rr, "size", v))
+
+        def _continue(*_args):
+            self._premium_acknowledged = True
+            pop.dismiss()
+            self.on_enter()
+
+        def _go_back(*_args):
+            pop.dismiss()
+            self.sm.current = "garden"
+
+        continue_btn.bind(on_release=_continue)
+        back_btn.bind(on_release=_go_back)
+        pop.open()
 
     def _show_create(self, *_):
         t = self.lang.t
@@ -170,6 +204,10 @@ class FamilyScreen(Screen):
             height=dp(70),
         )
         box.add_widget(emails_inp)
+        box.add_widget(label(t("leaderEmails"), bold=True, height=dp(22)))
+        leader_inp = StyledInput(hint_text=t("leaderEmailsPlaceholder"), size_hint_y=None, height=dp(50))
+        box.add_widget(leader_inp)
+        box.add_widget(label(t("leaderLimitHint"), color=C_INK_SOFT, font_size=sp(11), height=dp(32)))
         box.add_widget(label(t("maxMembers"), color=C_INK_SOFT, font_size=sp(11), height=dp(18)))
         btns = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(10))
         cancel = OutlineButton(text=t("cancel"))
@@ -178,29 +216,33 @@ class FamilyScreen(Screen):
         btns.add_widget(create)
         box.add_widget(btns)
 
-        pop = Popup(title=t("createFamilyGroup"), content=box, size_hint=(0.92, None), height=dp(360), background="", background_color=(0, 0, 0, 0), overlay_color=(0, 0, 0, 0.50), title_color=C_INK)
+        pop = Popup(title=t("createFamilyGroup"), content=box, size_hint=(0.92, None), height=dp(460), background="", background_color=(0, 0, 0, 0), overlay_color=(0, 0, 0, 0.50), title_color=C_INK)
         with pop.canvas.before:
             Color(*C_CREAM)
             rr = RoundedRectangle(pos=pop.pos, size=pop.size, radius=[dp(20)])
         pop.bind(pos=lambda _i, v: setattr(rr, "pos", v), size=lambda _i, v: setattr(rr, "size", v))
         cancel.bind(on_release=pop.dismiss)
-        create.bind(on_release=lambda *_args: self._create_group(name_inp.text.strip(), emails_inp.text.strip(), pop))
+        create.bind(on_release=lambda *_args: self._create_group(name_inp.text.strip(), emails_inp.text.strip(), leader_inp.text.strip(), pop))
         pop.open()
 
-    def _create_group(self, name, emails_str, pop):
+    def _create_group(self, name, emails_str, leader_email, pop):
         emails = [email.strip() for email in emails_str.split(",") if email.strip()]
+        leader_emails = [leader_email] if leader_email else []
         if not name or not emails:
             show_toast("Please fill in all fields", success=False)
             return
         if len(emails) > 7:
             show_toast("Maximum 7 members (8 including you)", success=False)
             return
+        if leader_emails and leader_emails[0] not in emails:
+            show_toast("Extra leader must be one of the invited members", success=False)
+            return
         pop.dismiss()
-        threading.Thread(target=self._do_create, args=(name, emails), daemon=True).start()
+        threading.Thread(target=self._do_create, args=(name, emails, leader_emails), daemon=True).start()
 
-    def _do_create(self, name, emails):
+    def _do_create(self, name, emails, leader_emails):
         try:
-            self.auth.create_family_group({"name": name, "member_emails": emails})
+            self.auth.create_family_group({"name": name, "member_emails": emails, "leader_emails": leader_emails})
             Clock.schedule_once(lambda _dt: (show_toast("Group created"), self.on_enter()))
         except Exception as exc:
             msg = str(exc)
